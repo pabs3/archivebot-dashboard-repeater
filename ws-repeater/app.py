@@ -19,7 +19,6 @@ import websockets
 import zmq.asyncio
 from fastapi import FastAPI, WebSocket
 from fastapi.responses import FileResponse, Response
-from fastapi.staticfiles import StaticFiles
 
 UPSTREAM = getenv("UPSTREAM", "ws://archivebot.com:4568/stream")
 class Receiver:
@@ -164,18 +163,6 @@ async def websocket_endpoint(websocket: WebSocket):
         await app._ws.cleanup(receiver)
 
 
-# also serve static files:
-app.mount("/assets", StaticFiles(directory="static/assets"), name="assets")
-
-
-@app.get("/")
-async def index():
-    return FileResponse("static/index.html")
-
-
-@app.get("/beta")
-async def beta():
-    return FileResponse("static/beta.html")
 
 
 # for logs/recent, send a request to upstream, or if we have one that's <3s old, return that
