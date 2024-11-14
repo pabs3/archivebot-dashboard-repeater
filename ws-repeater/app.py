@@ -81,21 +81,21 @@ class WebsocketUpstream:
             print(e)
 
     async def print_stats(self):
-        print(f"receivers={len(self._receivers)} rps={self.rps:.2f}", end=" ")
-        print(f"max_rps={self.max_rps:.2f} powersave={self.powersave}", end=" ")
-        print(f"queue={len(self.queue)} time={time.time():.2f}")
+        #print(f"receivers={len(self._receivers)} rps={self.rps:.2f}", end=" ")
+        #print(f"max_rps={self.max_rps:.2f} powersave={self.powersave}", end=" ")
+        #print(f"queue={len(self.queue)} time={time.time():.2f}")
         stale = []
         for i, receiver in enumerate(self._receivers):
             host, port = receiver.websocket.client.host, receiver.websocket.client.port
             behind = self.queue[-1][0] - receiver.our_max_msg if self.queue else 0
-            print(f"receiver {i:3d} {host:39s} {port:5d} behind {behind:6.2f}", end=" ")
+            #print(f"receiver {i:3d} {host:39s} {port:5d} behind {behind:6.2f}", end=" ")
             if behind > 60:
-                print("stale! closing")
+                #print("stale! closing")
                 stale.append(self.cleanup(receiver))
             else:
                 print()
         if stale:
-            print(f"cleaning up {len(stale)} stale receivers")
+            #print(f"cleaning up {len(stale)} stale receivers")
             await asyncio.gather(*stale)
 
 
