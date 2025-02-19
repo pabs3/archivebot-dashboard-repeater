@@ -20,7 +20,7 @@ from queue import Queue
 import aiohttp
 import websockets
 import zmq.asyncio
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI, WebSocket, Request
 from fastapi.responses import FileResponse, Response
 
 UPSTREAM = getenv("UPSTREAM", "ws://archivebot.com:4568/stream")
@@ -242,3 +242,13 @@ async def api_logs_recent():
                 app._logs_recent = time.time(), logs_recent
     # logs_recent is a json, return it as-is
     return Response(content=logs_recent, media_type="application/json")
+
+
+# Allow access from archivebot.com using the host/port parameters
+@app.middleware("http")
+async def cors(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["Access-Control-Allow-Origin"] = '*'
+    response.headers["Access-Control-Allow-Methods"] = '*'
+    response.headers["Access-Control-Allow-Headers"] = '*'
+    return response
