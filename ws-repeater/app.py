@@ -18,7 +18,7 @@ import aiohttp
 import websockets
 import zmq.asyncio
 from fastapi import FastAPI, WebSocket
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 UPSTREAM = getenv("UPSTREAM", "ws://archivebot.com:4568/stream")
@@ -143,7 +143,7 @@ async def lifespan(app: FastAPI):
     asyncio.create_task(app._ws.dispatcher(app._ws.calculate_rps))
     asyncio.create_task(app._ws.dispatcher(app._ws.print_stats))
     asyncio.create_task(app._ws.dispatcher(app._ws.freshen_queue, 0.1))
-    app._logs_recent = None, None
+    app._last_time = None
     # exit
     yield
     app._ws.stopped = True
@@ -181,12 +181,14 @@ async def beta():
 # for logs/recent, send a request to upstream, or if we have one that's <3s old, return that
 @app.get("/logs/recent")
 async def api_logs_recent():
-    last_time, logs_recent = app._logs_recent
-    if last_time is None or time.time() - last_time > 3:
+    async def process_response():
         # get it from http://archivebot.com/logs/recent
         async with aiohttp.ClientSession() as session:
             async with session.get("http://archivebot.com/logs/recent") as response:
-                logs_recent = await response.text()
-                app._logs_recent = time.time(), logs_recent
-    # logs_recent is a json, return it as-is
-    return Response(content=logs_recent, media_type="application/json")
+                app._last_time = time.time()
+                # response is JSON, stream it as-is
+                async for chunk in response.content.iter_chunked(1024):
+                    yield chunk
+
+    if app._last_time is None or time.time() - app._last_time > 3:
+                return StreamingResponse(process_response(), media_type="application/json")
