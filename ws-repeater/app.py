@@ -17,8 +17,8 @@ from traceback import print_exc
 import aiohttp
 import websockets
 import zmq.asyncio
-from fastapi import FastAPI, WebSocket
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import FastAPI, WebSocket, Request
+from fastapi.responses import Response, FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 UPSTREAM = getenv("UPSTREAM", "ws://archivebot.com:4568/stream")
@@ -178,17 +178,39 @@ async def beta():
     return FileResponse("static/beta.html")
 
 
+class LogsRecent(StreamingResponse):
+    async def stream_response(self, send) -> None:
+        await send({
+            "type": "http.response.start",
+            "status": self.status_code,
+            "headers": self.raw_headers,
+        })
+
+
+-    last_time, logs_recent = app._logs_recent
+-    if last_time is None or time.time() - last_time > 3:
+-        # get it from http://archivebot.com/logs/recent
+-        async with aiohttp.ClientSession() as session:
+-            async with session.get("http://archivebot.com/logs/recent") as response:
+-                logs_recent = await response.text()
+-                app._logs_recent = time.time(), logs_recent
+-    # logs_recent is a json, return it as-is
+-    return Response(content=logs_recent, media_type="application/json")
+
+
 # for logs/recent, send a request to upstream, or if we have one that's <3s old, return that
 @app.get("/logs/recent")
 async def api_logs_recent():
-    async def process_response():
-        # get it from http://archivebot.com/logs/recent
-        async with aiohttp.ClientSession() as session:
-            async with session.get("http://archivebot.com/logs/recent") as response:
-                app._last_time = time.time()
-                # response is JSON, stream it as-is
-                async for chunk in response.content.iter_chunked(1024):
-                    yield chunk
-
     if app._last_time is None or time.time() - app._last_time > 3:
-                return StreamingResponse(process_response(), media_type="application/json")
+        return StreamingResponse(process_response(), media_type="application/json")
+    # logs_recent is a json, return it as-is
+    return Response(content=logs_recent, media_type="application/json", )
+
+# Allow access from archivebot.com using the host/port parameters
+@app.middleware("http")
+async def cors(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["Access-Control-Allow-Origin"] = '*'
+    response.headers["Access-Control-Allow-Methods"] = '*'
+    response.headers["Access-Control-Allow-Headers"] = '*'
+    return response
